@@ -141,7 +141,7 @@ function makeServer(req) {
                 domain = bits[1];
 
                 //connect to the other server and send the message...
-                logger.info('outgoing message (valid relay) to ' + req.to + ' from ' + req.remoteAddress);
+                logger.info('outgoing message (valid relay) to ' + req.to + ' from ' + req.remoteAddress + ' user: ' + user);
                 platform.writeMaildir(user, true, function(outstream, path, headers) {
                     stream.pipe(outstream);
                     headers.end(req.to + '\0' + req.from);
@@ -164,3 +164,73 @@ function makeServer(req) {
 smtp.createServer(makeServer, config.domains[0], {key: privateKey, cert: certificate}).listen(25);
 smtp.createServer(makeServer, config.domains[0], {key: privateKey, cert: certificate}).listen(587);
 
+//process outgoing mails...
+function processOutboxes() {
+    platform.getUsers(function(users) {
+        seq(users)
+        .seqEach(function(user) {
+            platform.getNextOut(user, function(msgFile, hdrFile, nextOutCallback) {
+                if(!msgFile)
+                {
+                    nextOutCallback('no file');
+                    return;
+                }
+
+                logger.info('processing file: ' + msgFile);
+                var parts = fs.readFileSync(hdrFile).toString().split('\0');
+                var to = parts[0];
+                var from = parts[1];
+                var domain = to.split('@')[1];
+
+                smtp.connectMx(domain, function(err, socket) {
+                    //handle error!!!
+                    if(err === null) {
+                        smtp.connect({ stream: socket }, function( mail ) {
+                            seq()
+                                .seq_(function (next) {
+                                    mail.on('greeting', function (code, lines) {
+                                        next();
+                                    });
+                                })
+                                .seq(function (next) {
+                                    mail.helo(config.domains[0], this.into('helo'));
+                                })
+                                .seq(function () {
+                                    mail.from(from, this.into('from'));
+                                })
+                                .seq(function () {
+                                    mail.to(to, this.into('to'));
+                                })
+                                .seq(function () {
+                                    mail.data(this.into('data'))
+                                })
+                                .seq(function () {
+                                    console.dir(this.vars);                                                             
+                                    mail.message(fs.createReadStream(msgFile), this.into('message'));
+                                })
+                                .seq(function () {
+                                    mail.quit(this.into('quit'));
+                                })
+                                .seq(function () {
+                                    if(this.vars['data'] == 354 && this.vars['message'] == 250) {
+                                        nextOutCallback(null);
+                                        logger.info('Mail sent to ' + to);
+                                    }
+                                    else {
+                                        nextOutCallback("Error sending mail");
+                                        logger.info('Failed to send mail ' + from + ' -> ' + to);
+                                    }
+                                })
+                            ;
+                        });
+                    }                    
+                });
+            }, this);
+        })
+        .seq(function() { 
+            setTimeout(processOutboxes, 1000);
+        });
+    });
+}
+
+processOutboxes();
