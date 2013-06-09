@@ -5,13 +5,17 @@ var seq = require('seq');
 
 module.exports.auth = function(user, password, cb) {
     //NOTE!!!! NEED TO ESCAPE THESE SO THEY CAN'T DO ANYTHING NEFARIOUS!!!
-    child.exec(__dirname + '/login.sh "' + user + '" "' + password + '"', function (error, stdout, stderr) {
+    child.exec(__dirname + '/login.sh "' + cliEncode(user) + '" "' + cliEncode(password) + '"', function (error, stdout, stderr) {
         cb(null, error === null);
     });
 }
 
+function cliEncode(val) {
+    return val.replace(/\;|\||\&/g, "");
+}
+
 function getUserId(user, type, cb) {
-    var idCmd = child.spawn('id', [type, user]);
+    var idCmd = child.spawn('id', [cliEncode(type), cliEncode(user)]);
     var idString = '';
 
     idCmd.stdout.on('data', function(data) {
@@ -32,7 +36,7 @@ module.exports.checkUser = function(user, cb) {
 
 module.exports.writeMaildir = function(user, headers, cb) {
     //launch the command as the user...
-    var awk = child.spawn(__dirname + '/newmail.sh', [ user ]);
+    var awk = child.spawn(__dirname + '/newmail.sh', [ cliEncode(user) ]);
     var path = '';
         
     awk.stdout.on('data', function(data) {
@@ -59,7 +63,7 @@ module.exports.writeMaildir = function(user, headers, cb) {
 }
 
 module.exports.readyMaildir = function(user, path, domain, cb) {
-    var ready = child.spawn(__dirname + '/readymail.sh', [ user, path, domain, 'new' ]);
+    var ready = child.spawn(__dirname + '/readymail.sh', [ cliEncode(user), cliEncode(path), cliEncode(domain), 'new' ]);
     var path = '';
         
     ready.on('close', function(data) {
@@ -68,7 +72,7 @@ module.exports.readyMaildir = function(user, path, domain, cb) {
 }
 
 module.exports.readyOutbox = function(user, path, domain, cb) {
-    var ready = child.spawn(__dirname + '/readymail.sh', [ user, path, domain, 'out' ]);
+    var ready = child.spawn(__dirname + '/readymail.sh', [ cliEncode(user), cliEncode(path), cliEncode(domain), 'out' ]);
     var path = '';
 
     ready.on('close', function(data) {
@@ -97,7 +101,7 @@ module.exports.getUsers = function(cb) {
 
 module.exports.getNextOut = function(user, cb, doneCb) {
     //launch the command as the user...
-    var awk = child.spawn(__dirname + '/getoutmail.sh', [ user ]);
+    var awk = child.spawn(__dirname + '/getoutmail.sh', [ cliEncode(user) ]);
     var path = '';
         
     awk.stdout.on('data', function(data) {

@@ -87,7 +87,6 @@ function makeServer(req) {
     });
 
     req.on('auth', function (cmd, ack) {
-        logger.debug('auth request: ' + cmd.user + '/' + cmd.password);
         platform.auth(cmd.user, cmd.password, function(err, passed) {
             if(passed) {
                 ack.accept(250, 'Go ahead');
