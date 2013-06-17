@@ -1,3 +1,5 @@
+config.js
+node-postal-init
 lib-cov
 *.seed
 *.log
@@ -6,9 +8,13 @@ lib-cov
 *.out
 *.pid
 *.gz
+*.pem
+*.csr
+*.swp
 
 pids
 logs
 results
+node_modules
 
 npm-debug.log
