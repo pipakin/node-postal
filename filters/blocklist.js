@@ -26,9 +26,14 @@ function checkRbls(context, ip, callback) {
         })
         .unflatten()
         .seq(function(results) {
-            if(results.indexOf(true) > -1)
+            var score = results.reduce(function(score, result) { 
+                if(result) return score + 50; 
+                return score;
+            }, 0);
+        
+            if(score > 0)
             {
-                callback(null, 100, 'ip is on block list');
+                callback(null, score, 'ip is on block list');
             }
             else {
                 context.filterValues.ipPassed = true;

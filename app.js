@@ -57,19 +57,6 @@ function filterNew(req, path, callback, options) {
         });
 }
 
-function logPipe(stream) {
-    var log = es.map(function (buf, map) {
-        var data = buf.toString();
-        console.info(data);
-        map(null, data);
-    });
-
-//    stream.readable = true;
-//    stream.writeable = true;
-    stream.pipe(log);
-    return log;
-}
-
 function makeServer(req) {
     req.on('greeting', function(cmd, ack)
     {
@@ -204,72 +191,50 @@ smtp.createServer(makeServer, config.domains[0], {key: privateKey, cert: certifi
 //smtp.createServer(makeServer, config.domains[0], {key: privateKey, cert: certificate}).listen(3025);
 
 //process outgoing mails...
-function processOutboxes() {
-    platform.getUsers(function(users) {
-        seq(users)
-        .seqEach(function(user) {
-            platform.getNextOut(user, function(msgFile, hdrFile, nextOutCallback) {
-                if(!msgFile)
-                {
-                    nextOutCallback('no file');
-                    return;
-                }
-
-                logger.info('processing file: ' + msgFile);
-                var parts = fs.readFileSync(hdrFile).toString().split('\0');
-                var to = parts[0];
-                var from = parts[1];
-                var domain = to.split('@')[1];
-
-                smtp.connectMx(domain, function(err, socket) {
-                    //handle error!!!
-                    if(err === null) {
-                        smtp.connect({ stream: socket }, function( mail ) {
-                            seq()
-                                .seq_(function (next) {
-                                    mail.on('greeting', function (code, lines) {
-                                        next();
-                                    });
-                                })
-                                .seq(function (next) {
-                                    mail.helo(config.domains[0], this.into('helo'));
-                                })
-                                .seq(function () {
-                                    mail.from(from, this.into('from'));
-                                })
-                                .seq(function () {
-                                    mail.to(to, this.into('to'));
-                                })
-                                .seq(function () {
-                                    mail.data(this.into('data'))
-                                })
-                                .seq(function () {
-                                    console.dir(this.vars);                                                             
-                                    mail.message(fs.createReadStream(msgFile), this.into('message'));
-                                })
-                                .seq(function () {
-                                    mail.quit(this.into('quit'));
-                                })
-                                .seq(function () {
-                                    if(this.vars['data'] == 354 && this.vars['message'] == 250) {
-                                        nextOutCallback(null);
-                                        logger.info('Mail sent to ' + to);
-                                    }
-                                    else {
-                                        nextOutCallback("Error sending mail");
-                                        logger.info('Failed to send mail ' + from + ' -> ' + to);
-                                    }
-                                })
-                            ;
-                        });
-                    }                    
-                });
-            }, this);
-        })
-        .seq(function() { 
-            setTimeout(processOutboxes, 1000);
+function processOuboxes() {
+    seq()
+    .seq(function() { platform.getUsers(this); })
+    .parMap(function(user) { 
+        var callback = this;
+        platform.listEmails(user, 'outbox', function(err, emails) { callback(err, {user: user, emails: emails}); }); 
+    })
+    .unflatten()
+    .seqMap(function(userData) {
+        var callback = this;
+        if(!userData.emails) {
+            callback(null);
+        }
+        else {
+            callback(null, userData.emails.map(function(email) { return { user: userData.user, email: email }; }));
+        }
+    })
+    .unflatten()
+    .seqMap(function(emailData) {
+        var finishedCallback = this;
+        seq()
+        .seq(function() { platform.openEmail(emailData.email, emailData.user, this.into('stream')); })
+        .seq(function(stream, metadata) { this.into('metadata')(null, metadata); })
+        .seq(function(metadata) { smtp.connectMx(metadata.to.split('@')[1], this); })
+        .seq(function(socket) { smtp.connect({stream : socket}, this.into('mail')); })
+        .seq(function() { this.vars.mail.on('greeting', this); })
+        .seq(function() { this.vars.mail.helo(config.domains[0], this.into('helo')); })
+        .seq(function() { this.vars.mail.from(this.vars.metadata.from, this.into('from')); })
+        .seq(function() { this.vars.mail.to(this.vars.metadata.to, this.into('to')); })
+        .seq(function() { this.vars.mail.data(this.into('data')); })
+        .seq(function() { this.vars.mail.message(this.vars.stream, this.into('message')); })
+        .seq(function() { this.vars.mail.quit(this.into('quit')); })
+        .seq(function () {
+            if(this.vars['data'] == 354 && this.vars['message'] == 250) {
+                finishedCallback(null);
+                logger.verbose('Mail sent to ' + to);
+            }
+            else {
+                finishedCallback("Error sending mail");
+                logger.info('Failed to send mail ' + from + ' -> ' + to);
+            }
         });
-    });
+    })
+    .seq(function(){ setTimeout(processOutboxes, 1000); });
 }
 
-//processOutboxes();
+processOutboxes();

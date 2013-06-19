@@ -3,7 +3,7 @@ node-postal
 
 Sendmail replacement in node.js
 
-Licence
+License
 ===========
 
 Copyright (C) 2013 Philip Kin <Philip@thekinfamily.com>
