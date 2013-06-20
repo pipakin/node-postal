@@ -1,5 +1,5 @@
 module.exports = {
-    platform: 'unix',
+    platform: 'maildir',
     usermap: 'simple',
     tlsenabled: true,
     tlsonly: true,
