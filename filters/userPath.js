@@ -12,7 +12,7 @@ module.exports = function(req, path, cb) {
 
     var theUser = req.usermap.getUser(req.to.split('@')[0]);
 
-    if(req.config.domains.indexOf(req.to.split('@')[1]) > -1 && theUser) {
+    if(req.config.domains.indexOf(req.to.split('@')[1].toLowerCase()) > -1 && theUser) {
         req.platform.checkUser(theUser, function(err, valid) {
             if(valid) {
                 req.logger.info('to local user');
@@ -25,7 +25,7 @@ module.exports = function(req, path, cb) {
         });
     }
     else {
-        req.logger.info('spoof attempt from ' + req.remoteAddr + ' to ' + to);
+        req.logger.info('spoof attempt from ' + req.remoteAddr + ' to ' + req.to);
         cb(null, 101, 'spoof attempt');
     }
 }

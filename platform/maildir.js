@@ -38,8 +38,11 @@ module.exports.createPlatform = function(config, logger) {
     passwd.getAll(function(users) {
         users.forEach(function(user) {
             user.userId = parseInt(user.userId);
-            user.groupId = parseInt(user.groupId);
-            userTable[user.username] = user;
+            if(user.userId >= 1000 && user.userId <= 60000)
+            {
+                user.groupId = parseInt(user.groupId);
+                userTable[user.username] = user;
+            }
         });
     });
 

@@ -1,3 +1,3 @@
 exports.getUser = function(userPart) {
-    return userPart;
+    return userPart.toLowerCase();
 };

@@ -1,3 +1,6 @@
 [submodule "node_modules/smtp-protocol"]
 	path = node_modules/smtp-protocol
 	url = https://github.com/pipakin/node-smtp-protocol.git
+[submodule "node_modules/pam"]
+	path = node_modules/pam
+	url = https://github.com/pipakin/node-pam.git

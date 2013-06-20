@@ -91,6 +91,7 @@ function makeServer(req) {
     });
 
     req.on('to', function (to, ack) {
+        logger.debug('to: ' + to);
         filterNew(req, null, function(err, score, reason) {
             if(score > config.blockEmailScore) {
                 ack.reject(500, 'spam filtering rejected:\n' + reason);
@@ -120,7 +121,7 @@ function makeServer(req) {
         var user = usermap.getUser(bits[0]);
         var domain = bits[1];
 
-        if(config.domains.indexOf(domain) > -1) {
+        if(config.domains.indexOf(domain.toLowerCase()) > -1) {
             platform.createEmail(user, function(err, outstream, id) {
                 //stream.readable = true;
                 ack.accept(354, 'Start mail input; end with <CRLF>.<CRLF>');
@@ -191,14 +192,14 @@ smtp.createServer(makeServer, config.domains[0], {key: privateKey, cert: certifi
 //smtp.createServer(makeServer, config.domains[0], {key: privateKey, cert: certificate}).listen(3025);
 
 //process outgoing mails...
-function processOuboxes() {
+function processOutboxes() {
     seq()
     .seq(function() { platform.getUsers(this); })
+    .flatten()
     .parMap(function(user) { 
         var callback = this;
         platform.listEmails(user, 'outbox', function(err, emails) { callback(err, {user: user, emails: emails}); }); 
     })
-    .unflatten()
     .seqMap(function(userData) {
         var callback = this;
         if(!userData.emails) {
@@ -208,7 +209,7 @@ function processOuboxes() {
             callback(null, userData.emails.map(function(email) { return { user: userData.user, email: email }; }));
         }
     })
-    .unflatten()
+    .seqFilter(function(data) { if(data) this(null); else this(true);  })
     .seqMap(function(emailData) {
         var finishedCallback = this;
         seq()
